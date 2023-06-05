@@ -1,200 +1,196 @@
-import streamlit as st
+
+from typing import List
+from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, UploadFile, File, Form, Request
+from fastapi.responses import JSONResponse, FileResponse
 from PIL import Image, ImageDraw, ImageFont
-import io
+import os
 import json
-import base64
-import pyperclip
+import cv2
 
-from flask import Flask, jsonify, request
+app = FastAPI()
 
-app = Flask(__name__)
+UPLOAD_DIRECTORY = "uploads/"
+OVERLAYED_DIRECTORY = "overlayed_images/"
 
-def add_image_overlay(images, image_data_list):
-    images_with_overlay = []
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    instructions = """
+    <h1>Welcome to the Image Overlay API</h1>
+<p>Instructions:</p>
+<ol>
+    <li>Use the Postman tool or any HTTP client to interact with the API.</li>
+    <li>Send a <strong>POST</strong> request to <code>/upload</code> endpoint to upload an image and specify the following optional parameters:</li>
+    <ul>
+        <li><strong>file</strong>: The image file to upload.</li>
+        <li><strong>text</strong>: Text to overlay on the image.</li>
+        <li><strong>size</strong>: Size of the resized image (square).</li>
+        <li><strong>width</strong>: Width of the resized image.</li>
+        <li><strong>height</strong>: Height of the resized image.</li>
+        <li><strong>position</strong>: Position of the overlayed text ("top left", "top right", "bottom left", or "bottom right").</li>
+    </ul>
+    <li>Retrieve the uploaded data using a <strong>GET</strong> request to <code>/data</code> endpoint.</li>
+    <li>Download the overlayed image using a <strong>GET</strong> request to <code>/download</code> endpoint.</li>
+</ol>
+Here are the Postman commands to interact with the API:
 
-    for image, image_data in zip(images, image_data_list):
-        img = Image.open(io.BytesIO(image))
-        overlay = Image.new('RGBA', img.size)
+<br>
+<strong>Upload an Image:</strong><br>
+Endpoint: <code>POST http://localhost:8000/upload</code><br>
+Body:Select <strong>form-data</strong> as the body type.
+Add the following key-value pairs:
+<br>
+<strong>file</strong>: Select the image file to upload.
+<br>
+<strong>text</strong>: (Optional) Add text to overlay on the image.
+<br>
+<strong>size</strong>: (Optional) Specify the size of the resized image.
+<br>
+<strong>width</strong>: (Optional) Specify the width of the resized image.
+<br>
+<strong>height</strong>: (Optional) Specify the height of the resized image.
+<br>
+<strong>position</strong>: (Optional) Specify the position of the overlayed text ("top left", "top right", "bottom left", or "bottom right").
+<br>
+<br>
+<strong>Retrieve Uploaded Data:</strong><br>
 
-        image_name = image_data['image_name']
-        font_size = image_data['font_size']
-        position = image_data['position']
-        text_color = image_data['text_color']
-        font = ImageFont.truetype('./arial.ttf', font_size)
+Endpoint: <code>GET http://localhost:8000/data</code>
+<br>
 
-        if position == 'bottom-left':
-            x = 10
-            y = img.height - font_size - 10
-        elif position == 'bottom-right':
-            text_width, _ = font.getsize(image_name)
-            x = img.width - text_width - 10
-            y = img.height - font_size - 10
+<strong>Download Overlayed Image:</strong><br>
+Endpoint: <code>GET http://localhost:8000/download</code>
+<br>
+<h3>make sure host link suitable for your machine </h3>
+    """
+    return instructions
+
+def get_overlayed_images() -> List[str]:
+    overlayed_images = []
+    for root, dirs, files in os.walk(OVERLAYED_DIRECTORY):
+        for file in files:
+            if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".bmp")):
+                overlayed_images.append(os.path.join(root, file))
+    return overlayed_images
+
+def get_image_dimensions(image_path):
+    image = Image.open(image_path)
+    width, height = image.size
+    return width, height
+
+@app.post("/upload")
+async def upload_image(
+    request: Request,
+    file: UploadFile = File(...),
+    text: str = Form("", convert_empty_to_none=True),
+    size: int = Form(None, convert_empty_to_none=True),
+    width: int = Form(None, convert_empty_to_none=True),
+    height: int = Form(None, convert_empty_to_none=True),
+    position: str = Form("top", regex=r"^(top|bottom)\s+(left|right)?$"),
+):
+  
+    if not os.path.exists(OVERLAYED_DIRECTORY):
+        os.makedirs(OVERLAYED_DIRECTORY)
+
+    
+    file_path = os.path.join(UPLOAD_DIRECTORY, file.filename)
+    with open(file_path, "wb") as image_file:
+        content = await file.read()
+        image_file.write(content)
+
+
+    image = Image.open(file_path)
+
+
+    if text:
+       
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.truetype("arial.ttf", size or 24)
+        text_width, text_height = draw.textsize(text, font=font)
+        if position.startswith("top"):
+            text_position = (10, 10)
         else:
-            x = 10
-            y = 10
+            text_position = (10, image.height - text_height - 10)
+        draw.text(text_position, text, fill="white", font=font)
+        file_name, file_ext = os.path.splitext(file.filename)
+        file_name = text.replace(" ", "_")
+        modified_file_name = f"{file_name}{file_ext}"
+    elif size:
 
-        draw = ImageDraw.Draw(overlay)
-        draw.text((x, y), image_name, font=font, fill=text_color)
+        image = image.resize((size, size))
+        file_name, file_ext = os.path.splitext(file.filename)
+        file_name = file_name.replace(" ", "_")
+        modified_file_name = f"{file_name}_overlay{size}{file_ext}"
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.truetype("arial.ttf", size or 24)
+        text_width, text_height = draw.textsize(modified_file_name, font=font)
+        if position.startswith("top"):
+            text_position = (10, 10)
+        else:
+            text_position = (10, image.height - text_height - 10)
+        draw.text(text_position, modified_file_name, fill="white", font=font)
+    elif width and height:
+      
+        image = image.resize((width, height))
+        file_name, file_ext = os.path.splitext(file.filename)
+        file_name = file_name.replace(" ", "_")
+        modified_file_name = f"{file_name}_overlay{width}_{height}{file_ext}"
+        draw = ImageDraw.Draw(image)
+        font = ImageFont.truetype("arial.ttf", 24)
+        text_width, text_height = draw.textsize(modified_file_name, font=font)
+        if position.startswith("top"):
+            text_position = (10, 10)
+        else:
+            text_position = (10, image.height - text_height - 10)
+        draw.text(text_position, modified_file_name, fill="white", font=font)
+    else:
+     
+        modified_file_name = file.filename
 
-        img_with_overlay = Image.alpha_composite(img.convert('RGBA'), overlay)
-        images_with_overlay.append(img_with_overlay)
+ 
+    modified_file_path = os.path.join(OVERLAYED_DIRECTORY, modified_file_name)
+    image.save(modified_file_path)
 
-    return images_with_overlay
-
-
-def resize_image(image, size):
-    width, height = size
-    return image.resize((width, height), resample=Image.LANCZOS)
-
-
-def store_json_data(json_data):
-    with open('history.json', 'a') as file:
-        file.write(json_data + '\n')
-
-
-def load_json_data():
-    data = []
-    with open('history.json', 'r') as file:
-        for line in file:
-            data.append(json.loads(line))
-    return data
-
-
-def save_to_history(data):
-    image_name = data['image_name']
-    font_size = data['font_size']
-    position = data['position']
-    text_color = data['text_color']
-    altered_size = data.get('altered_size', None)
-
-    image_data = {
-        'image_name': image_name,
-        'font_size': font_size,
-        'position': position,
-        'text_color': text_color,
-        'altered_size': altered_size
+ 
+    response = {
+        "file_name": modified_file_name,
+        "text": text,
+        "size": size,
+        "width": width,
+        "height": height,
+        "position": position,
+        "download_link": f"http://localhost:8000/download", 
     }
 
-    store_json_data(json.dumps(image_data))
-    return {"message": "Data saved to history.json"}
 
+    json_file_path = os.path.join(OVERLAYED_DIRECTORY, "data.json")
+    with open(json_file_path, "w") as json_file:
+        json.dump(response, json_file)
 
-@app.route('/api/history', methods=['GET'])
-def get_history():
-    history_data = load_json_data()
-    return jsonify(history_data)
+    return JSONResponse(content=response)
 
+@app.get("/data")
+async def get_data():
+    json_file_path = os.path.join(OVERLAYED_DIRECTORY, "data.json")
+    with open(json_file_path, "r") as json_file:
+        data = json.load(json_file)
+    return data
 
-@app.route('/api/image-overlay', methods=['POST'])
-def process_image_overlay():
-    uploaded_files = request.files.getlist('files')
-    image_data_list = json.loads(request.form.get('data'))
+@app.get("/download")
+async def download():
+    
+    json_file_path = os.path.join(OVERLAYED_DIRECTORY, "data.json")
+    with open(json_file_path, "r") as json_file:
+        data = json.load(json_file)
+    file_name = data.get("file_name")
 
-    images = [uploaded_file.read() for uploaded_file in uploaded_files]
-    images_with_overlay = add_image_overlay(images, image_data_list)
+    if file_name:
 
-    response_data = []
+        file_path = os.path.join(OVERLAYED_DIRECTORY, file_name)
 
-    for i, image_with_overlay in enumerate(images_with_overlay):
-        resized_image_with_overlay = resize_image(image_with_overlay, (800, 600))
-        image_path = f"image_{i+1}.png"
-        resized_image_with_overlay.save(image_path, 'PNG')
+     
+        if os.path.isfile(file_path):
+            
+            return FileResponse(file_path, filename=file_name)
 
-        with open(image_path, 'rb') as file:
-            image_data = file.read()
-
-        image_base64 = base64.b64encode(image_data).decode('utf-8')
-
-        response_data.append({
-            'image_name': image_data_list[i]['image_name'],
-            'image': image_base64
-        })
-
-    return jsonify(response_data)
-
-
-def main():
-    st.title('Image Overlay API')
-
-    uploaded_files = st.file_uploader('Upload images', type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
-    if uploaded_files:
-        image_data_list = []
-        images = [uploaded_file.read() for uploaded_file in uploaded_files]
-
-        for i, uploaded_file in enumerate(uploaded_files):
-            image_name = st.text_input(f'Enter image name for Image {i+1}', value=uploaded_file.name)
-            font_size = st.number_input(f'Overlay font size for Image {i+1}', min_value=1, value=20)
-            position = st.selectbox(f'Overlay position for Image {i+1}', ('bottom-left', 'bottom-right', 'top-left', 'top-right'))
-            text_color = st.color_picker(f'Text color for Image {i+1}', '#FFFFFF')
-
-            image_data_list.append({
-                'image_name': image_name,
-                'font_size': font_size,
-                'position': position,
-                'text_color': text_color
-            })
-
-        images_with_overlay = add_image_overlay(images, image_data_list)
-
-        for i, image_with_overlay in enumerate(images_with_overlay):
-            st.image(image_with_overlay, caption=f'Image {i+1} with Overlay', use_column_width=True)
-
-            if st.checkbox(f"Resize Image {i+1}"):
-                unique_key = f"resize_select_{i}"
-                image_size = st.selectbox("Select Image Size", (
-                    "Default", "1920x1080", "630x900", "720x1080", "900x1260",
-                    "1080x1440", "1440x1800", "1530x1980", "1800x2520", "1050x1500",
-                    "1200x1800", "1500x2100", "1800x2400", "2400x3000", "2550x3300",
-                    "2800x3920", "3025x3850"
-                ), key=unique_key)
-
-                if image_size == "Default":
-                    resized_image_with_overlay = image_with_overlay
-                    altered_size = "Default"
-                else:
-                    width, height = image_size.split("x")
-                    width = int(width)
-                    height = int(height)
-                    resized_image_with_overlay = resize_image(image_with_overlay, (width, height))
-                    altered_size = image_size
-
-                st.image(resized_image_with_overlay, caption=f"Resized Image {i+1}", use_column_width=True)
-
-                image_path = f"image_{i+1}.png"
-                resized_image_with_overlay.save(image_path, 'PNG')
-                st.download_button(label=f'Download Image {i+1}', data=open(image_path, 'rb'), file_name=image_path,
-                                   mime='image/png')
-
-                image_data_list[i]['altered_size'] = altered_size
-
-        if st.button('Save'):
-            for i, image_data in enumerate(image_data_list):
-                image_data['image'] = base64.b64encode(images[i]).decode('utf-8')
-                save_to_history(image_data)
-            st.success('Data saved to history.json')
-
-        st.subheader('API Response')
-        st.json(image_data_list)
-
-        st.subheader('History Data')
-        history_data = load_json_data()
-        for data in history_data:
-            st.write(data)
-
-        api_link = "https://your-domain.com/api/history"  # Replace with the actual domain name
-        st.subheader("API Endpoint")
-        st.markdown(f"**API Link:** `{api_link}`")
-
-        st.subheader("Postman Commands")
-        st.markdown("To run the API on the local host, use the following command:")
-        st.code("postman run <your-collection>.json --global-var \"api_link=http://localhost:5000/api/history\"")
-
-        st.markdown("To run the API on the hosted site, use the following command:")
-        st.code("postman run <your-collection>.json --global-var \"api_link=https://your-domain.com/api/history\"")
-
-        st.markdown(f"[Click here]({api_link}) to copy the API Link to clipboard.")
-        pyperclip.copy(api_link)
-
-
-if __name__ == '__main__':
-    main()
+    return JSONResponse(content={"error": "File not found"})
