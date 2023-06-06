@@ -572,50 +572,50 @@ OVERLAYED_DIRECTORY = "overlayed_images/"
 @app.get("/", response_class=HTMLResponse)
 async def root():
       instructions = """
-#     <h1>Welcome to the Image Overlay API</h1>
-#     <p>Instructions:</p>
-#     <ol>
-#         <li>Use the Postman tool or any HTTP client to interact with the API.</li>
-#         <li>Send a <strong>POST</strong> request to <code>/upload</code> endpoint to upload an image and specify the following optional parameters:</li>
-#         <ul>
-#             <li><strong>file</strong>: The image file to upload.</li>
-#             <li><strong>text</strong>: Text to overlay on the image.</li>
-#             <li><strong>size</strong>: Size of the resized image (square).</li>
-#             <li><strong>width</strong>: Width of the resized image.</li>
-#             <li><strong>height</strong>: Height of the resized image.</li>
-#             <li><strong>position</strong>: Position of the overlayed text ("top left", "top right", "bottom left", or "bottom right").</li>
-#         </ul>
-#         <li>Retrieve the uploaded data using a <strong>GET</strong> request to <code>/data</code> endpoint.</li>
-#         <li>Download the overlayed image using a <strong>GET</strong> request to <code>/download</code> endpoint.</li>
-#     </ol>
-#     Here are the Postman commands to interact with the API:
-#     <br>
-#     <strong>Upload an Image:</strong><br>
-#     Endpoint: <code>POST http://localhost:8000/upload</code><br>
-#     Body: Select <strong>form-data</strong> as the body type.
-#     Add the following key-value pairs:
-#     <br>
-#     <strong>file</strong>: Select the image file to upload.
-#     <br>
-#     <strong>text</strong>: (Optional) Add text to overlay on the image.
-#     <br>
-#     <strong>size</strong>: (Optional) Specify the size of the resized image.
-#     <br>
-#     <strong>width</strong>: (Optional) Specify the width of the resized image.
-#     <br>
-#     <strong>height</strong>: (Optional) Specify the height of the resized image.
-#     <br>
-#     <strong>position</strong>: (Optional) Specify the position of the overlayed text ("top left", "top right", "bottom left", or "bottom right").
-#     <br>
-#     <br>
-#     <strong>Retrieve Uploaded Data:</strong><br>
-#     Endpoint: <code>GET http://localhost:8000/data</code>
-#     <br>
-#     <strong>Download Overlayed Image:</strong><br>
-#     Endpoint: <code>GET http://localhost:8000/download</code>
-#     <br>
-#     <h3>Make sure the host link is suitable for your machine.</h3>
-#     """
+    <h1>Welcome to the Image Overlay API</h1>
+    <p>Instructions:</p>
+    <ol>
+        <li>Use the Postman tool or any HTTP client to interact with the API.</li>
+        <li>Send a <strong>POST</strong> request to <code>/upload</code> endpoint to upload an image and specify the following optional parameters:</li>
+        <ul>
+            <li><strong>file</strong>: The image file to upload.</li>
+            <li><strong>text</strong>: Text to overlay on the image.</li>
+            <li><strong>size</strong>: Size of the resized image (square).</li>
+            <li><strong>width</strong>: Width of the resized image.</li>
+            <li><strong>height</strong>: Height of the resized image.</li>
+            <li><strong>position</strong>: Position of the overlayed text ("top left", "top right", "bottom left", or "bottom right").</li>
+        </ul>
+        <li>Retrieve the uploaded data using a <strong>GET</strong> request to <code>/data</code> endpoint.</li>
+        <li>Download the overlayed image using a <strong>GET</strong> request to <code>/download</code> endpoint.</li>
+    </ol>
+    Here are the Postman commands to interact with the API:
+    <br>
+    <strong>Upload an Image:</strong><br>
+    Endpoint: <code>POST http://localhost:8000/upload</code><br>
+    Body: Select <strong>form-data</strong> as the body type.
+    Add the following key-value pairs:
+    <br>
+    <strong>file</strong>: Select the image file to upload.
+    <br>
+    <strong>text</strong>: (Optional) Add text to overlay on the image.
+    <br>
+    <strong>size</strong>: (Optional) Specify the size of the resized image.
+    <br>
+    <strong>width</strong>: (Optional) Specify the width of the resized image.
+    <br>
+    <strong>height</strong>: (Optional) Specify the height of the resized image.
+    <br>
+    <strong>position</strong>: (Optional) Specify the position of the overlayed text ("top left", "top right", "bottom left", or "bottom right").
+    <br>
+    <br>
+    <strong>Retrieve Uploaded Data:</strong><br>
+    Endpoint: <code>GET http://localhost:8000/data</code>
+    <br>
+    <strong>Download Overlayed Image:</strong><br>
+    Endpoint: <code>GET http://localhost:8000/download</code>
+    <br>
+    <h3>Make sure the host link is suitable for your machine.</h3>
+     """
       return instructions
 
 
