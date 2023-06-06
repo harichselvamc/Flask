@@ -84,10 +84,8 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         with open(temp_path, "wb") as f:
             f.write(await file.read())
 
-     
         image = cv2.imread(temp_path)
 
-        
         file_name = file.filename
         file_name_without_extension, file_extension = os.path.splitext(file_name)
 
@@ -96,56 +94,43 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         else:
             overlay_text = f"{file_name_without_extension}{file_extension}"
 
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 2
-        font_thickness = 5
-        text_color = (0, 0, 238)
+        # Calculate suitable font scale based on image size
+        font_scale = 20
 
-        (text_width, text_height), _ = cv2.getTextSize(
-            overlay_text, font, font_scale, font_thickness
-        )
+        # Calculate suitable font thickness based on image size
+        font_thickness = max(1, int(image.shape[1] / 1000))
 
-        
-        x = int((image.shape[1] - text_width) / 2)  
-        y = int((image.shape[0] + text_height) - 30)  
+        # Calculate suitable text position based on image size
+        text_size, _ = cv2.getTextSize(overlay_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
+        text_position = (int((image.shape[1] - text_size[0]) / 2), int((image.shape[0] + text_size[1]) - 30))
 
-        
+        # Overlay text on the image
         cv2.putText(
-            image, overlay_text, (x, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA
+            image, overlay_text, text_position, cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 238), font_thickness, cv2.LINE_AA
         )
 
-    
         output_file_path = os.path.join(output_directory, f"output_{i}.png")
 
-       
         cv2.imwrite(output_file_path, image)
 
-        
         os.remove(temp_path)
 
-      
         download_url = f"/static/output/output_{i}.png"
         download_urls.append(download_url)
 
-       
         instruction = f"Image {file_name} processed. Download: <a href='{download_url}'>{file_name}</a>"
         instructions.append(instruction)
 
-    
     return {"download_urls": download_urls, "instructions": instructions}
 
 
 @app.get("/download/{filename}")
 async def download(filename: str):
- 
     file_path = os.path.join("static", "output", filename)
 
- 
     if os.path.isfile(file_path):
-        
         return FileResponse(file_path)
 
-    
     return {"detail": "File not found"}
 
 
@@ -161,7 +146,6 @@ async def get_overlayed_image_data():
             "size": size
         })
     return {"images": image_data}
-
 
 
 if __name__ == "__main__":
