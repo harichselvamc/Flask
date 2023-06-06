@@ -3,7 +3,7 @@ import cv2
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
@@ -11,18 +11,70 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Define the home page
+output_directory = "static/output"
+os.makedirs(output_directory, exist_ok=True)
+
+
+def create_index_html():
+    index_html_path = os.path.join("templates", "index.html")
+    if not os.path.exists(index_html_path):
+        with open(index_html_path, "w") as f:
+            f.write(
+                """
+                <html>
+                <head>
+                    <title>Image Overlay App</title>
+                </head>
+                <body>
+                    <h1>Image Overlay App</h1>
+                    <form action="/upload" method="post" enctype="multipart/form-data">
+                        <div>
+                            <label for="files">Upload Image(s)</label>
+                            <input type="file" id="files" name="files" accept="image/*" multiple>
+                        </div>
+                        <div>
+                            <label for="text">Text Overlay</label>
+                            <input type="text" id="text" name="text">
+                        </div>
+                        <div>
+                            <input type="submit" value="Upload">
+                        </div>
+                    </form>
+                    <h2>Instructions:</h2>
+                    {% for instruction in instructions %}
+                        <p>{{ instruction }}</p>
+                    {% endfor %}
+                </body>
+                </html>
+                """
+            )
+
+
+create_index_html()
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
+    overlayed_images = os.listdir(output_directory)
+    instructions = [
+        f"Image {image} processed. Download: <a href='/download/{image}'>{image}</a>"
+        for image in overlayed_images
+    ]
+    return templates.TemplateResponse("index.html", {"request": request, "instructions": instructions})
 
 
-# Define the upload endpoint
+@app.get("/home", response_class=HTMLResponse)
+async def show_home(request: Request):
+    overlayed_images = os.listdir(output_directory)
+    instructions = [
+        f"Image {image} processed. Download: <a href='/download/{image}'>{image}</a>"
+        for image in overlayed_images
+    ]
+    return templates.TemplateResponse("index.html", {"request": request, "instructions": instructions})
+
+
 @app.post("/upload")
 async def upload(files: List[UploadFile] = File(...), text: str = None):
-    output_directory = "static/output"
-    os.makedirs(output_directory, exist_ok=True)
-
     download_urls = []
     instructions = []
 
@@ -78,7 +130,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         download_urls.append(download_url)
 
         # Add instruction
-        instruction = f"Image {file_name} processed. Download: {download_url}"
+        instruction = f"Image {file_name} processed. Download: <a href='{download_url}'>{file_name}</a>"
         instructions.append(instruction)
 
     # Return the download URLs and instructions in the API response
@@ -100,32 +152,17 @@ async def download(filename: str):
 
 
 @app.get("/data")
-async def get_data():
-    output_directory = "static/output"
-    if not os.path.exists(output_directory):
-        return {"overlayed_images": []}
-
+async def get_overlayed_image_data():
     overlayed_images = os.listdir(output_directory)
-    return {"overlayed_images": overlayed_images}
-
-
-@app.get("/url")
-async def get_shareable_link(request: Request):
-    base_url = request.base_url
-    return {"shareable_link": base_url}
-
-
-@app.get("/images")
-async def get_images():
-    output_directory = "static/output"
-    if not os.path.exists(output_directory):
-        return {"image_urls": []}
-
-    overlayed_images = os.listdir(output_directory)
-    image_urls = [
-        f"{request.base_url}/static/output/{image}" for image in overlayed_images
-    ]
-    return {"image_urls": image_urls}
+    image_data = []
+    for image in overlayed_images:
+        file_path = os.path.join(output_directory, image)
+        size = os.path.getsize(file_path)
+        image_data.append({
+            "filename": image,
+            "size": size
+        })
+    return {"images": image_data}
 
 
 # Start the server
