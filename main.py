@@ -915,9 +915,8 @@
 #     response.headers["Access-Control-Allow-Origin"] = "*"
 #     return response
 from typing import List
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi import FastAPI, UploadFile, File, Form, Request
-from fastapi.responses import JSONResponse, FileResponse
 from PIL import Image, ImageDraw, ImageFont
 import os
 
@@ -994,13 +993,13 @@ def get_image_dimensions(image_path):
 
 @app.post("/upload")
 async def upload_image(
-        request: Request,
-        file: UploadFile = File(...),
-        text: str = Form("", convert_empty_to_none=True),
-        size: int = Form(None, convert_empty_to_none=True),
-        width: int = Form(None, convert_empty_to_none=True),
-        height: int = Form(None, convert_empty_to_none=True),
-        position: str = Form("top", regex=r"^(top|bottom)\s+(left|right)?$"),
+    request: Request,
+    file: UploadFile = File(...),
+    text: str = Form("", convert_empty_to_none=True),
+    size: int = Form(None, convert_empty_to_none=True),
+    width: int = Form(None, convert_empty_to_none=True),
+    height: int = Form(None, convert_empty_to_none=True),
+    position: str = Form("top", regex=r"^(top|bottom)\s+(left|right)?$"),
 ):
     if not os.path.exists(OVERLAYED_DIRECTORY):
         os.makedirs(OVERLAYED_DIRECTORY)
@@ -1056,18 +1055,10 @@ async def upload_image(
     modified_file_path = os.path.join(OVERLAYED_DIRECTORY, modified_file_name)
     image.save(modified_file_path)
 
-    response = {
-        "file_name": modified_file_name,
-        "text": text,
-        "size": size,
-        "width": width,
-        "height": height,
-        "position": position,
-        "image_dimensions": get_image_dimensions(modified_file_path),
-        "image_path": modified_file_path,
-    }
-
-    return JSONResponse(content=response)
+    # Return the file as a download response
+    response = FileResponse(modified_file_path, filename=modified_file_name)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 @app.get("/data")
