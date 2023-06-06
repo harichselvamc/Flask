@@ -744,8 +744,6 @@ from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse, FileResponse
 from PIL import Image, ImageDraw, ImageFont
 import os
-import json
-import cv2
 
 app = FastAPI()
 
@@ -770,7 +768,7 @@ async def root():
             <li><strong>position</strong>: Position of the overlayed text ("top left", "top right", "bottom left", or "bottom right").</li>
         </ul>
         <li>Retrieve the uploaded data using a <strong>GET</strong> request to <code>/data</code> endpoint.</li>
-        <li>Download the overlayed image using a <strong>GET</strong> request to <code>/download</code> endpoint.</li>
+        <li>Download the overlayed image using a <strong>GET</strong> request to <code>/download/{image_name}</code> endpoint.</li>
     </ol>
     Here are the Postman commands to interact with the API:
     <br>
@@ -796,7 +794,7 @@ async def root():
     Endpoint: <code>GET https://flaskapp-fu3s.onrender.com/data</code>
     <br>
     <strong>Download Overlayed Image:</strong><br>
-    Endpoint: <code>GET https://flaskapp-fu3s.onrender.com/download</code>
+    Endpoint: <code>GET https://flaskapp-fu3s.onrender.com/download/{image_name}</code>
     <br>
     <h3>Make sure the host link is suitable for your machine.</h3>
     """
