@@ -1889,6 +1889,11 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
 
         # ...
 
+        # Initialize the result variable
+        result = None
+
+        # ...
+
         # Create a transparent background image
         transparent_img = np.zeros_like(result, dtype=np.uint8)
         print("Transparent Image Shape:", transparent_img.shape)  # Debug print
