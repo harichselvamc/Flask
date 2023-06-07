@@ -899,7 +899,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
-import rembg
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -924,16 +923,27 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         with open(temp_path, "wb") as f:
             f.write(await file.read())
 
-        # Remove the background using rembg
-        with open(temp_path, "rb") as f:
-            input_data = np.frombuffer(f.read(), dtype=np.uint8)
-            output_data = rembg.remove(input_data)
+        # Read the image using OpenCV
+        image = cv2.imread(temp_path)
 
-        # Convert the output data to an image
-        output_image = cv2.imdecode(output_data, cv2.IMREAD_COLOR)
+        # Convert the image to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # Perform background subtraction using OpenCV's built-in algorithm
+        mask = cv2.createBackgroundSubtractorMOG2().apply(gray)
+
+        # Threshold the mask to create a binary image
+        _, binary = cv2.threshold(mask, 1, 255, cv2.THRESH_BINARY)
+
+        # Apply a morphological operation to enhance the mask
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+
+        # Apply the mask to the original image
+        result = cv2.bitwise_and(image, image, mask=binary)
 
         # Resize the image to 1080x1080
-        image = cv2.resize(output_image, (1080, 1080))
+        image = cv2.resize(result, (1080, 1080))
 
         # Prepare the text to overlay on the image
         file_name = file.filename
