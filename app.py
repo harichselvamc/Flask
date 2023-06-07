@@ -889,64 +889,66 @@
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
 
+
 import os
 import cv2
-import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
-import rembg
-import sys
+import numpy as np
+from rembg import remove
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-output_directory = "static/output"
-os.makedirs(output_directory, exist_ok=True)
+# Define the home page
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request})
 
-image_counter = 0
 
 # Define the upload endpoint
 @app.post("/upload")
 async def upload(files: List[UploadFile] = File(...), text: str = None):
-    global image_counter
+    output_directory = "static/overlayed_images"
+    os.makedirs(output_directory, exist_ok=True)
 
     download_urls = []
     instructions = []
 
-    for file in files:
+    for i, file in enumerate(files):
         # Save the uploaded file temporarily
-        temp_path = os.path.join(output_directory, f"temp_{image_counter}.png")
+        temp_path = os.path.join(output_directory, f"temp_{i}.png")
         with open(temp_path, "wb") as f:
             f.write(await file.read())
 
-        # Read the image using OpenCV
-        image = cv2.imread(temp_path)
+        # Remove the background of the image using rembg module
+        with open(temp_path, "rb") as image_file:
+            image_data = image_file.read()
+            output_data = remove(image_data)
+
+        # Convert the image data to a NumPy array
+        image_array = np.frombuffer(output_data, np.uint8)
+
+        # Decode the image array
+        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
         # Resize the image to 1080x1080 pixels
         image = cv2.resize(image, (1080, 1080))
 
-        # Convert the image to RGBA
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
-
-        # Convert the image to a byte array
-        image_data = image.tobytes()
-
-        # Remove the background using rembg
-        with rembg.open(sys.stdin.buffer, sys.stdout.buffer) as f:
-            f.write(image_data)
-
-        # Convert the output data to an image
-        output_image = cv2.imdecode(np.frombuffer(sys.stdout.buffer.read(), np.uint8), cv2.IMREAD_UNCHANGED)
-
-        # Prepare the text to overlay on the image
+        # Get the name from the uploaded file
         file_name = file.filename
         file_name_without_extension, file_extension = os.path.splitext(file_name)
-        overlay_text = text or f"{file_name_without_extension}{file_extension}"
+
+        # Prepare the text to overlay on the image
+        if text:
+            overlay_text = text
+        else:
+            overlay_text = f"{file_name_without_extension}{file_extension}"
 
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 2
@@ -958,40 +960,28 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
             overlay_text, font, font_scale, font_thickness
         )
 
-        # Calculate the position to place the text
-        x = int((output_image.shape[1] - text_width) / 2)  # Centered horizontally
-        y = int((output_image.shape[0] + text_height) - 30)  # Placed at the bottom
+        # Calculate the position to place the text at the bottom of the image
+        x = int((image.shape[1] - text_width) / 2)  # Centered horizontally
+        y = image.shape[0] - int(text_height) - 30  # Placed at the bottom with 30 pixels padding
 
         # Overlay the text on the image
         cv2.putText(
-            output_image,
-            overlay_text,
-            (x, y),
-            font,
-            font_scale,
-            text_color,
-            font_thickness,
-            cv2.LINE_AA,
+            image, overlay_text, (x, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA
         )
 
         # Set the output file path
-        output_file_path = os.path.join(output_directory, f"output_{image_counter}.png")
+        output_file_path = os.path.join(output_directory, f"output_{i}.png")
 
         # Save the resulting image
-        cv2.imwrite(output_file_path, output_image)
-
-        # Remove the temporary file
-        os.remove(temp_path)
+        cv2.imwrite(output_file_path, image)
 
         # Generate the download link URL for the output image
-        download_url = f"/static/output/output_{image_counter}.png"
+        download_url = f"/static/overlayed_images/output_{i}.png"
         download_urls.append(download_url)
 
         # Add instruction
         instruction = f"Image {file_name} processed. Download: {download_url}"
         instructions.append(instruction)
-
-        image_counter += 1
 
     # Return the download URLs and instructions in the API response
     return {"download_urls": download_urls, "instructions": instructions}
@@ -1000,7 +990,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
 @app.get("/download/{filename}")
 async def download(filename: str):
     # Making the file path
-    file_path = os.path.join(output_directory, filename)
+    file_path = os.path.join("static", "overlayed_images", filename)
 
     # Check if the file exists
     if os.path.isfile(file_path):
@@ -1013,7 +1003,7 @@ async def download(filename: str):
 
 @app.get("/data")
 async def get_data():
-    overlayed_images = os.listdir(output_directory)
+    overlayed_images = os.listdir("static/overlayed_images")
     return {"overlayed_images": overlayed_images}
 
 
@@ -1025,13 +1015,13 @@ async def get_shareable_link(request: Request):
 
 @app.get("/images")
 async def get_images():
-    overlayed_images = os.listdir(output_directory)
+    overlayed_images = os.listdir("static/overlayed_images")
     image_urls = [
-        f"http://localhost:12000/static/output/{image}" for image in overlayed_images
+        f"http://localhost:12000/static/overlayed_images/{image}" for image in overlayed_images
     ]
     return {"image_urls": image_urls}
 
 
 # Start the server
-if __name__ == "__main__":
+if _name_ == "_main_":
     uvicorn.run(app, host="0.0.0.0", port=12000)
