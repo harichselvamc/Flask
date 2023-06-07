@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
+import rembg
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -32,8 +33,18 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         with open(temp_path, "wb") as f:
             f.write(await file.read())
 
+        # Remove the background using rembg
+        output_path = os.path.join(output_directory, f"output_{i}.png")
+        with open(temp_path, "rb") as img_file, open(output_path, "wb") as output_file:
+            img_data = img_file.read()
+            output_data = rembg.remove(img_data)
+            output_file.write(output_data)
+
         # Read the image using OpenCV
-        image = cv2.imread(temp_path)
+        image = cv2.imread(output_path)
+
+        # Resize the image to 1080x1080
+        resized_image = cv2.resize(image, (1080, 1080))
 
         # Get the name from the uploaded file
         file_name = file.filename
@@ -56,19 +67,23 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         )
 
         # Calculate the position to place the text
-        x = int((image.shape[1] - text_width) / 2)  # Centered horizontally
-        y = int((image.shape[0] + text_height) - 30)  # Centered vertically
+        x = int((resized_image.shape[1] - text_width) / 2)  # Centered horizontally
+        y = int((resized_image.shape[0] + text_height) - 30)  # Placed at the bottom
 
         # Overlay the text on the image
         cv2.putText(
-            image, overlay_text, (x, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA
+            resized_image,
+            overlay_text,
+            (x, y),
+            font,
+            font_scale,
+            text_color,
+            font_thickness,
+            cv2.LINE_AA,
         )
 
-        # Set the output file path
-        output_file_path = os.path.join(output_directory, f"output_{i}.png")
-
         # Save the resulting image
-        cv2.imwrite(output_file_path, image)
+        cv2.imwrite(output_path, resized_image)
 
         # Remove the temporary file
         os.remove(temp_path)
