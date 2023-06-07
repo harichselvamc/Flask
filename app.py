@@ -1032,19 +1032,13 @@ import cv2
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-
-# Define the home page
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
-
 
 # Define the upload endpoint
 @app.post("/upload")
@@ -1064,14 +1058,25 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         # Read the image using OpenCV
         image = cv2.imread(temp_path)
 
-        # Get the name from the uploaded file
-        file_name = file.filename
-        file_name_without_extension, file_extension = os.path.splitext(file_name)
+        # Resize the image to 1080x1080
+        image = cv2.resize(image, (1080, 1080))
+
+        # Remove the background using Rembg (requires Rembg library installed)
+        try:
+            import rembg
+            image = rembg.remove(image)
+        except ImportError:
+            return JSONResponse(
+                {"error": "Rembg library not found. Please install it to remove the background."},
+                status_code=500,
+            )
 
         # Prepare the text to overlay on the image
         if text:
             overlay_text = text
         else:
+            file_name = file.filename
+            file_name_without_extension, file_extension = os.path.splitext(file_name)
             overlay_text = f"{file_name_without_extension}{file_extension}"
 
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -1086,7 +1091,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
 
         # Calculate the position to place the text
         x = int((image.shape[1] - text_width) / 2)  # Centered horizontally
-        y = int((image.shape[0] + text_height) - 30)  # Centered vertically
+        y = int((image.shape[0] + text_height) - 30)  # Placed at the bottom
 
         # Overlay the text on the image
         cv2.putText(
@@ -1107,7 +1112,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         download_urls.append(download_url)
 
         # Add instruction
-        instruction = f"Image {file_name} processed. Download: {download_url}"
+        instruction = f"Image {file.filename} processed. Download: {download_url}"
         instructions.append(instruction)
 
     # Return the download URLs and instructions in the API response
