@@ -330,11 +330,11 @@ import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 from rembg import remove
-from multiprocessing import Process, current_process
+from multiprocessing import Process
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
