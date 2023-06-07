@@ -889,16 +889,17 @@
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
 
-
 import os
 import cv2
 import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
+import rembg
+import sys
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -926,24 +927,21 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         # Read the image using OpenCV
         image = cv2.imread(temp_path)
 
-        # Convert the image to grayscale
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # Resize the image to 1080x1080 pixels
+        image = cv2.resize(image, (1080, 1080))
 
-        # Perform background subtraction using OpenCV's built-in algorithm
-        mask = cv2.createBackgroundSubtractorMOG2().apply(gray)
+        # Convert the image to RGBA
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGBA)
 
-        # Threshold the mask to create a binary image
-        _, binary = cv2.threshold(mask, 1, 255, cv2.THRESH_BINARY)
+        # Convert the image to a byte array
+        image_data = image.tobytes()
 
-        # Apply a morphological operation to enhance the mask
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+        # Remove the background using rembg
+        with rembg.open(sys.stdin.buffer, sys.stdout.buffer) as f:
+            f.write(image_data)
 
-        # Apply the mask to the original image
-        result = cv2.bitwise_and(image, image, mask=binary)
-
-        # Resize the image to 1080x1080
-        image = cv2.resize(result, (1080, 1080))
+        # Convert the output data to an image
+        output_image = cv2.imdecode(np.frombuffer(sys.stdout.buffer.read(), np.uint8), cv2.IMREAD_UNCHANGED)
 
         # Prepare the text to overlay on the image
         file_name = file.filename
@@ -961,12 +959,12 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         )
 
         # Calculate the position to place the text
-        x = int((image.shape[1] - text_width) / 2)  # Centered horizontally
-        y = int((image.shape[0] + text_height) - 30)  # Placed at the bottom
+        x = int((output_image.shape[1] - text_width) / 2)  # Centered horizontally
+        y = int((output_image.shape[0] + text_height) - 30)  # Placed at the bottom
 
         # Overlay the text on the image
         cv2.putText(
-            image,
+            output_image,
             overlay_text,
             (x, y),
             font,
@@ -980,7 +978,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         output_file_path = os.path.join(output_directory, f"output_{image_counter}.png")
 
         # Save the resulting image
-        cv2.imwrite(output_file_path, image)
+        cv2.imwrite(output_file_path, output_image)
 
         # Remove the temporary file
         os.remove(temp_path)
