@@ -1857,7 +1857,7 @@ import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
@@ -1894,6 +1894,20 @@ async def upload(files: List[UploadFile] = File(...)):
         # Overlay the image on the transparent background
         alpha = 0.5  # Opacity of the overlay image
         overlay = cv2.addWeighted(resized_result, alpha, resized_transparent_img, 1 - alpha, 0)
+
+        # Overlay the image name as text
+        image_name = file.filename
+        font_path = "static/fonts/arial.ttf"  # Path to the font file
+        font_size = 20
+        font = ImageFont.truetype(font_path, font_size)
+        pil_overlay = Image.fromarray(overlay)
+        draw = ImageDraw.Draw(pil_overlay)
+        text_width, text_height = draw.textsize(image_name, font=font)
+        text_position = (10, 10)
+        draw.text(text_position, image_name, font=font, fill=(255, 255, 255, 128))
+
+        # Convert the overlay back to numpy array
+        overlay = np.array(pil_overlay)
 
         # Save the resulting image
         output_file_path = os.path.join(output_directory, f"output_{i}.png")
