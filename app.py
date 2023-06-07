@@ -2135,6 +2135,118 @@
 # # Start the server
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
+# import os
+# import cv2
+# import base64
+# import numpy as np
+# from typing import List
+# from fastapi import FastAPI, UploadFile, File
+# from fastapi.responses import Response
+# from PIL import Image, ImageDraw, ImageFont
+# from fastapi.staticfiles import StaticFiles
+# import uvicorn
+# from fastapi.responses import FileResponse
+
+# app = FastAPI()
+
+# # Define the upload endpoint
+# @app.post("/upload")
+# async def upload(files: List[UploadFile] = File(...)):
+#     output_directory = "static/output"
+#     os.makedirs(output_directory, exist_ok=True)
+
+#     for i, file in enumerate(files):
+#         # Save the uploaded file temporarily
+#         temp_path = os.path.join(output_directory, f"temp_{i}.png")
+#         with open(temp_path, "wb") as f:
+#             f.write(await file.read())
+
+#         # Process the image
+#         process_image(temp_path, i)
+
+#     return {"message": "Images processed successfully"}
+
+
+# # Serve the static files
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# # Define the endpoint to view the output image
+# @app.get("/output/{index}")
+# async def view_output_image(index: int):
+#     output_file_path = f"static/output/output_{index}.png"
+#     return FileResponse(output_file_path)
+
+
+# # Define the endpoint to preview all the output images in Postman
+# @app.post("/preview")
+# async def preview_images(files: List[UploadFile] = File(...)):
+#     previews = []
+
+#     for i, file in enumerate(files):
+#         # Save the uploaded file temporarily
+#         temp_path = os.path.join("static", f"temp_{i}.png")
+#         with open(temp_path, "wb") as f:
+#             f.write(await file.read())
+
+#         # Process the image and generate the preview
+#         process_image(temp_path, i)
+
+#         # Read the preview image as base64-encoded string
+#         output_file_path = f"static/output/output_{i}.png"
+#         with open(output_file_path, "rb") as f:
+#             image_data = base64.b64encode(f.read()).decode("utf-8")
+#             previews.append(image_data)
+
+#     return {"previews": previews}
+
+
+# # Utility function to process the image
+# def process_image(temp_path, index):
+#     # Read the image using PIL
+#     pil_img = Image.open(temp_path)
+
+#     # Convert the PIL image to numpy array
+#     img = np.array(pil_img)
+
+#     # Remove the background using the provided code
+#     # Replace the following lines with your background removal code
+#     result = img  # Placeholder for the result
+#     transparent_img = np.zeros_like(result, dtype=np.uint8)
+
+#     # Resize the image to 1080x1080
+#     resized_result = cv2.resize(result, (1080, 1080))
+#     resized_transparent_img = cv2.resize(transparent_img, (1080, 1080))
+
+#     # Overlay the image on the transparent background
+#     alpha = 0.5  # Opacity of the overlay image
+#     overlay = cv2.addWeighted(resized_result, alpha, resized_transparent_img, 1 - alpha, 0)
+
+#     # Convert the overlay image to PIL Image
+#     pil_overlay = Image.fromarray(overlay)
+
+#     # Add text overlay
+#     draw = ImageDraw.Draw(pil_overlay)
+#     font_path = "static/fonts/arial.ttf"  # Path to the font file
+#     font_size = 20
+#     font = ImageFont.truetype(font_path, font_size)
+#     text = os.path.basename(temp_path)  # Get the filename as the text
+#     text_position = (10, 10)
+#     text_color = (255, 255, 255)  # White color
+#     draw.text(text_position, text, font=font, fill=text_color)
+
+#     # Convert the PIL overlay back to numpy array
+#     overlay_with_text = np.array(pil_overlay)
+
+#     # Save the resulting image
+#     output_directory = "static/output"
+#     output_file_path = os.path.join(output_directory, f"output_{index}.png")
+#     cv2.imwrite(output_file_path, overlay_with_text)
+
+
+# # Start the server
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=12000)
 import os
 import cv2
 import base64
@@ -2195,10 +2307,15 @@ async def preview_images(files: List[UploadFile] = File(...)):
         # Read the preview image as base64-encoded string
         output_file_path = f"static/output/output_{i}.png"
         with open(output_file_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
-            previews.append(image_data)
+            image_data = f.read()
 
-    return {"previews": previews}
+        # Append the image data to the previews list
+        previews.append(image_data)
+
+    # Create a multi-part response with the image data
+    response = Response(content=previews, media_type="image/png")
+    response.headers["Content-Disposition"] = "attachment; filename=preview.png"
+    return response
 
 
 # Utility function to process the image
