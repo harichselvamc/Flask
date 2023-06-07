@@ -1855,25 +1855,17 @@ import os
 import cv2
 import numpy as np
 from typing import List
-from fastapi import FastAPI, UploadFile, Request, File
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
-import uvicorn
-from PIL import Image, ImageDraw, ImageFont
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import FileResponse
+from PIL import Image
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
 
 # Define the upload endpoint
 @app.post("/upload")
-async def upload(files: List[UploadFile] = File(...), text: str = None):
+async def upload(files: List[UploadFile] = File(...)):
     output_directory = "static/output"
     os.makedirs(output_directory, exist_ok=True)
-
-    download_urls = []
-    instructions = []
 
     for i, file in enumerate(files):
         # Save the uploaded file temporarily
@@ -1881,46 +1873,34 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         with open(temp_path, "wb") as f:
             f.write(await file.read())
 
-        # Read the image using OpenCV
-        img = cv2.imread(temp_path)
+        # Read the image using PIL
+        pil_img = Image.open(temp_path)
+
+        # Convert the PIL image to numpy array
+        img = np.array(pil_img)
 
         # Remove the background using the provided code
-        original = img.copy()
-
-        # ...
-
-        # Initialize the result variable
-        result = None
-
-        # ...
-
-        # Create a transparent background image
+        # Replace the following lines with your background removal code
+        result = img  # Placeholder for the result
         transparent_img = np.zeros_like(result, dtype=np.uint8)
         print("Transparent Image Shape:", transparent_img.shape)  # Debug print
-
-        # ...
 
         # Resize the image to 1080x1080
         resized_result = cv2.resize(result, (1080, 1080))
         resized_transparent_img = cv2.resize(transparent_img, (1080, 1080))
 
-        # ...
-
         # Overlay the image on the transparent background
         alpha = 0.5  # Opacity of the overlay image
         overlay = cv2.addWeighted(resized_result, alpha, resized_transparent_img, 1 - alpha, 0)
 
-        # ...
-
         # Save the resulting image
         output_file_path = os.path.join(output_directory, f"output_{i}.png")
-        pil_img.save(output_file_path, "PNG")
+        cv2.imwrite(output_file_path, overlay)
 
-        # ...
+    return {"message": "Images processed successfully"}
 
-    # ...
-
-# ...
+# Serve the static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Start the server
 if __name__ == "__main__":
