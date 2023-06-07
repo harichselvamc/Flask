@@ -2635,6 +2635,102 @@
 # # Start the server
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
+# import os
+# import cv2
+# import numpy as np
+# from typing import List
+# from fastapi import FastAPI, UploadFile, File
+# from PIL import Image, ImageDraw, ImageFont
+# from fastapi.staticfiles import StaticFiles
+# from fastapi.responses import StreamingResponse
+# import uvicorn
+
+# app = FastAPI()
+
+# # Define the upload endpoint
+# @app.post("/upload")
+# async def upload(files: List[UploadFile] = File(...)):
+#     output_directory = "static/output"
+#     os.makedirs(output_directory, exist_ok=True)
+
+#     for i, file in enumerate(files):
+#         # Save the uploaded file temporarily
+#         temp_path = os.path.join(output_directory, f"temp_{i}.png")
+#         with open(temp_path, "wb") as f:
+#             f.write(await file.read())
+
+#         # Process the image
+#         process_image(temp_path, i)
+
+#     return {"message": "Images processed successfully"}
+
+
+# # Serve the static files
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# # Define the endpoint to view the output image
+# @app.get("/output/{index}")
+# async def view_output_image(index: int):
+#     output_file_path = f"static/output/output_{index}.png"
+#     return FileResponse(output_file_path)
+
+
+# # Define the endpoint to get all the image previews
+# @app.get("/img")
+# async def get_image_previews():
+#     previews = []
+
+#     output_directory = "static/output"
+#     for filename in os.listdir(output_directory):
+#         if filename.startswith("output_") and filename.endswith(".png"):
+#             output_file_path = os.path.join(output_directory, filename)
+#             previews.append(output_file_path)
+
+#     def stream():
+#         for preview_path in previews:
+#             with open(preview_path, "rb") as f:
+#                 yield f.read()
+
+#     return StreamingResponse(stream(), media_type="image/png")
+
+
+# # Utility function to process the image
+# def process_image(temp_path, index):
+#     # Read the image using OpenCV
+#     img = cv2.imread(temp_path)
+
+#     # Convert the image to grayscale
+#     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+#     # Perform background removal using thresholding
+#     _, thresholded = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+
+#     # Find contours of the foreground objects
+#     contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+#     # Create a mask for the foreground objects
+#     mask = np.zeros_like(thresholded)
+#     cv2.drawContours(mask, contours, -1, (255), thickness=cv2.FILLED)
+
+#     # Apply the mask to the original image
+#     result = cv2.bitwise_and(img, img, mask=mask)
+
+#     # Resize the image to 1080x1080
+#     resized_result = cv2.resize(result, (1080, 1080))
+
+#     # Save the resulting image
+#     output_directory = "static/output"
+#     output_file_path = os.path.join(output_directory, f"out{index}.png")
+#     cv2.imwrite(output_file_path, resized_result)
+
+
+# # Start the server
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=12000)
+
+
+
 import os
 import cv2
 import numpy as np
@@ -2642,7 +2738,7 @@ from typing import List
 from fastapi import FastAPI, UploadFile, File
 from PIL import Image, ImageDraw, ImageFont
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 import uvicorn
 
 app = FastAPI()
@@ -2662,7 +2758,13 @@ async def upload(files: List[UploadFile] = File(...)):
         # Process the image
         process_image(temp_path, i)
 
-    return {"message": "Images processed successfully"}
+    # Get a list of processed image file paths
+    processed_images = []
+    for filename in os.listdir(output_directory):
+        if filename.startswith("out") and filename.endswith(".png"):
+            processed_images.append(filename)
+
+    return {"message": "Images processed successfully", "processed_images": processed_images}
 
 
 # Serve the static files
