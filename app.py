@@ -895,7 +895,7 @@ import cv2
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 import numpy as np
@@ -914,7 +914,7 @@ async def home(request: Request):
 # Define the upload endpoint
 @app.post("/upload")
 async def upload(files: List[UploadFile] = File(...), text: str = None):
-    output_directory = "static/overlayed_images"
+    output_directory = "static/output"
     os.makedirs(output_directory, exist_ok=True)
 
     download_urls = []
@@ -937,9 +937,6 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         # Decode the image array
         image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-        # Resize the image to 1080x1080 pixels
-        image = cv2.resize(image, (1080, 1080))
-
         # Get the name from the uploaded file
         file_name = file.filename
         file_name_without_extension, file_extension = os.path.splitext(file_name)
@@ -960,9 +957,9 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
             overlay_text, font, font_scale, font_thickness
         )
 
-        # Calculate the position to place the text at the bottom of the image
-        x = int((image.shape[1] - text_width) / 2)  # Centered horizontally
-        y = image.shape[0] - int(text_height) - 30  # Placed at the bottom with 30 pixels padding
+        # Calculate the position to place the text
+        x = int((text_width - image.shape[1]) / 2)  # Centered horizontally
+        y = int((image.shape[0] + text_height) - 30)  # Centered vertically
 
         # Overlay the text on the image
         cv2.putText(
@@ -975,8 +972,11 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         # Save the resulting image
         cv2.imwrite(output_file_path, image)
 
+        # Remove the temporary file
+        os.remove(temp_path)
+
         # Generate the download link URL for the output image
-        download_url = f"/static/overlayed_images/output_{i}.png"
+        download_url = f"/static/output/output_{i}.png"
         download_urls.append(download_url)
 
         # Add instruction
@@ -990,7 +990,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
 @app.get("/download/{filename}")
 async def download(filename: str):
     # Making the file path
-    file_path = os.path.join("static", "overlayed_images", filename)
+    file_path = os.path.join("static", "output", filename)
 
     # Check if the file exists
     if os.path.isfile(file_path):
@@ -1003,7 +1003,7 @@ async def download(filename: str):
 
 @app.get("/data")
 async def get_data():
-    overlayed_images = os.listdir("static/overlayed_images")
+    overlayed_images = os.listdir("static/output")
     return {"overlayed_images": overlayed_images}
 
 
@@ -1015,9 +1015,9 @@ async def get_shareable_link(request: Request):
 
 @app.get("/images")
 async def get_images():
-    overlayed_images = os.listdir("static/overlayed_images")
+    overlayed_images = os.listdir("static/output")
     image_urls = [
-        f"http://localhost:12000/static/overlayed_images/{image}" for image in overlayed_images
+        f"http://localhost:12000/static/output/{image}" for image in overlayed_images
     ]
     return {"image_urls": image_urls}
 
