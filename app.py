@@ -483,12 +483,9 @@ from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
-import uvicorn
 from rembg import remove
 import multiprocessing
-import asyncio
-import time
-
+import time 
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -540,10 +537,10 @@ def create_home_html():
 async def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request})
 
-async def process_image(file, text, output_directory, next_file_number):
+def process_image(file, text, output_directory, next_file_number):
     temp_path = os.path.join(output_directory, f"temp_{file.filename}")
     with open(temp_path, "wb") as f:
-        f.write(await file.read())
+        f.write(file.file.read())
 
     with open(temp_path, "rb") as image_file:
         image_data = image_file.read()
@@ -593,12 +590,14 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
 
     next_file_number = get_next_file_number()
 
+    pool = multiprocessing.Pool()
+
     tasks = []
     for file in files:
-        tasks.append(process_image(file, text, output_directory, next_file_number))
+        tasks.append(pool.apply_async(process_image, args=(file, text, output_directory, next_file_number)))
         next_file_number += 1
 
-    results = await asyncio.gather(*tasks)
+    results = [task.get() for task in tasks]
 
     download_urls = [result[1] for result in results]
     instructions = [f"Image {result[0]} processed. Download: {result[1]}" for result in results]
@@ -648,6 +647,6 @@ async def get_images():
     return {"image_urls": image_urls}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=12000)
+    os.system("nohup python app.py &")
     time.sleep(900)  # Wait for 15 minutes
-    uvicorn.stop()
+    os.system("pkill -f app.py")
