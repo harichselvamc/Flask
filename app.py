@@ -1506,7 +1506,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 from PIL import Image
-import sys
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -1546,7 +1545,6 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         mask = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=4)
 
         data = mask.tolist()
-        sys.setrecursionlimit(10**8)
         for i in range(len(data)):
             for j in range(len(data[i])):
                 if data[i][j] != 255:
@@ -1597,24 +1595,25 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         text_color = (0, 0, 238)
 
         # Set the text size
-        (text_width, text_height), _ = cv2.getTextSize(
+        text_width, text_height = cv2.getTextSize(
             overlay_text, font, font_scale, font_thickness
-        )
+        )[0]
 
         # Calculate the position to place the text
-        x = int((img.shape[1] - text_width) / 2)  # Centered horizontally
-        y = int((img.shape[0] + text_height) - 30)  # Placed at the bottom
+        img_width, img_height = img.size
+        x = int((img_width - text_width) / 2)  # Centered horizontally
+        y = int((img_height + text_height) - 30)  # Placed at the bottom
 
         # Overlay the text on the image
         cv2.putText(
-            img, overlay_text, (x, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA
+            np.array(img), overlay_text, (x, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA
         )
 
         # Set the output file path
         output_file_path = os.path.join(output_directory, f"output_{i}.png")
 
         # Save the resulting image
-        cv2.imwrite(output_file_path, img)
+        img.save(output_file_path, "PNG")
 
         # Generate the download link URL for the output image
         download_url = f"/static/output/output_{i}.png"
@@ -1628,6 +1627,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
     return {"download_urls": download_urls, "instructions": instructions}
 
 
+# Define the download endpoint
 @app.get("/download/{filename}")
 async def download(filename: str):
     # Making the file path
@@ -1639,21 +1639,24 @@ async def download(filename: str):
         return FileResponse(file_path)
 
     # If the file does not exist, return a 404 Not Found response
-    return {"detail": "File not found"}
+    return JSONResponse({"detail": "File not found"}, status_code=404)
 
 
+# Define the data endpoint
 @app.get("/data")
 async def get_data():
     overlayed_images = os.listdir("static/output")
     return {"overlayed_images": overlayed_images}
 
 
+# Define the shareable link endpoint
 @app.get("/url")
 async def get_shareable_link(request: Request):
     base_url = request.base_url
     return {"shareable_link": base_url}
 
 
+# Define the images endpoint
 @app.get("/images")
 async def get_images():
     overlayed_images = os.listdir("static/output")
