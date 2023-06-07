@@ -2307,15 +2307,14 @@ async def preview_images(files: List[UploadFile] = File(...)):
         # Read the preview image as base64-encoded string
         output_file_path = f"static/output/output_{i}.png"
         with open(output_file_path, "rb") as f:
-            image_data = f.read()
+            image_data = base64.b64encode(f.read()).decode("utf-8")
+            previews.append({
+                "index": i,
+                "image_data": image_data,
+                "filename": file.filename
+            })
 
-        # Append the image data to the previews list
-        previews.append(image_data)
-
-    # Create a multi-part response with the image data
-    response = Response(content=previews, media_type="image/png")
-    response.headers["Content-Disposition"] = "attachment; filename=preview.png"
-    return response
+    return {"previews": previews}
 
 
 # Utility function to process the image
