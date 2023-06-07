@@ -890,15 +890,16 @@
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
 
 
-
 import os
 import cv2
+import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
+import rembg
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -923,11 +924,16 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         with open(temp_path, "wb") as f:
             f.write(await file.read())
 
-        # Read the image using OpenCV
-        image = cv2.imread(temp_path)
+        # Remove the background using rembg
+        with open(temp_path, "rb") as f:
+            input_data = np.frombuffer(f.read(), dtype=np.uint8)
+            output_data = rembg.remove(input_data)
+
+        # Convert the output data to an image
+        output_image = cv2.imdecode(output_data, cv2.IMREAD_COLOR)
 
         # Resize the image to 1080x1080
-        image = cv2.resize(image, (1080, 1080))
+        image = cv2.resize(output_image, (1080, 1080))
 
         # Prepare the text to overlay on the image
         file_name = file.filename
