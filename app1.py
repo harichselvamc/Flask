@@ -251,4 +251,9 @@ async def get_images():
 
 # Start the server
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=12000)
+    import sys
+
+    if "--force-server" in sys.argv:
+        uvicorn.run(app, host="0.0.0.0", port=12000)
+    else:
+        print("Use the --force-server flag to run the server forcefully.")
