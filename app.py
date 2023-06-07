@@ -1502,7 +1502,7 @@ import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 from PIL import Image
@@ -1528,6 +1528,9 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
 
         # Read the image using OpenCV
         img = cv2.imread(temp_path)
+
+        # Resize the image to 1080x1080
+        img = cv2.resize(img, (1080, 1080))
 
         # Remove the background using the provided code
         original = img.copy()
@@ -1664,6 +1667,21 @@ async def get_images():
         f"http://localhost:12000/static/output/{image}" for image in overlayed_images
     ]
     return {"image_urls": image_urls}
+
+
+# Define the preview endpoint
+@app.get("/preview/{filename}")
+async def preview(filename: str):
+    # Making the file path
+    file_path = os.path.join("static", "output", filename)
+
+    # Check if the file exists
+    if os.path.isfile(file_path):
+        # If the file exists, return it as a response
+        return FileResponse(file_path)
+
+    # If the file does not exist, return a 404 Not Found response
+    return JSONResponse({"detail": "File not found"}, status_code=404)
 
 
 # Start the server
