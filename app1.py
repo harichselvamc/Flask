@@ -143,7 +143,7 @@ from PIL import Image
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 import rembg
@@ -151,12 +151,6 @@ import rembg
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-
-# Define the home page
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
-
 
 # Define the upload endpoint
 @app.post("/upload")
