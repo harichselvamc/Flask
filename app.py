@@ -1691,14 +1691,18 @@ import os
 import cv2
 import numpy as np
 from typing import List
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.templating import Jinja2Templates
+import uvicorn
 from PIL import Image, ImageDraw, ImageFont
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
+# Define the upload endpoint
 @app.post("/upload")
 async def upload(files: List[UploadFile] = File(...), text: str = None):
     output_directory = "static/output"
@@ -1708,53 +1712,142 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
     instructions = []
 
     for i, file in enumerate(files):
+        # Save the uploaded file temporarily
         temp_path = os.path.join(output_directory, f"temp_{i}.png")
         with open(temp_path, "wb") as f:
             f.write(await file.read())
 
+        # Read the image using OpenCV
         img = cv2.imread(temp_path)
-        img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        _, mask = cv2.threshold(img_gray, 10, 255, cv2.THRESH_BINARY)
+        # Remove the background using the provided code
+        original = img.copy()
 
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        l = int(max(5, 6))
+        u = int(min(6, 6))
 
-        for contour in contours:
-            cv2.drawContours(img, [contour], 0, (0, 0, 0), -1)
+        ed = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        edges = cv2.GaussianBlur(img, (21, 51), 3)
+        edges = cv2.cvtColor(edges, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(edges, l, u)
 
-        transparent_img = np.zeros_like(img, dtype=np.uint8)
-        transparent_img[:, :] = (255, 255, 255)
+        _, thresh = cv2.threshold(edges, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        mask = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=4)
 
-        alpha = 0.5
-        overlay = cv2.addWeighted(img, alpha, transparent_img, 1 - alpha, 0)
+        data = mask.tolist()
+        for i in range(len(data)):
+            for j in range(len(data[i])):
+                if data[i][j] != 255:
+                    data[i][j] = -1
+                else:
+                    break
+            for j in range(len(data[i])-1, -1, -1):
+                if data[i][j] != 255:
+                    data[i][j] = -1
+                else:
+                    break
+        image = np.array(data)
+        image[image != -1] = 255
+        image[image == -1] = 0
 
+        mask = np.array(image, np.uint8)
+
+        result = cv2.bitwise_and(original, original, mask=mask)
+        result[mask == 0] = 255
+
+        # Create a transparent background image
+        transparent_img = np.zeros_like(result, dtype=np.uint8)
+        transparent_img[:, :] = (255, 255, 255, 0)
+
+        # Resize the image to 1080x1080
+        resized_result = cv2.resize(result, (1080, 1080))
+        resized_transparent_img = cv2.resize(transparent_img, (1080, 1080))
+
+        # Overlay the image on the transparent background
+        alpha = 0.5  # Opacity of the overlay image
+        overlay = cv2.addWeighted(resized_result, alpha, resized_transparent_img, 1 - alpha, 0)
+
+        # Convert the image to PIL format
         pil_img = Image.fromarray(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+
+        # Draw text on the image
         draw = ImageDraw.Draw(pil_img)
         text_font = ImageFont.truetype("arial.ttf", 10)
         text_color = (0, 0, 238)
         text_position = (10, 1060)  # Bottom left corner
         draw.text(text_position, text, font=text_font, fill=text_color)
 
+        # Save the resulting image
         output_file_path = os.path.join(output_directory, f"output_{i}.png")
         pil_img.save(output_file_path, "PNG")
 
+        # Generate the download link URL for the output image
         download_url = f"/static/output/output_{i}.png"
         download_urls.append(download_url)
 
+        # Add instruction
         instruction = f"Image {file.filename} processed. Download: {download_url}"
         instructions.append(instruction)
 
+    # Return the download URLs and instructions in the API response
     return {"download_urls": download_urls, "instructions": instructions}
 
+
+# Define the download endpoint
 @app.get("/download/{filename}")
 async def download(filename: str):
-    file_path = os.path.join("static/output", filename)
+    # Making the file path
+    file_path = os.path.join("static", "output", filename)
 
+    # Check if the file exists
     if os.path.isfile(file_path):
+        # If the file exists, return it as a response
         return FileResponse(file_path)
 
-    return {"detail": "File not found"}
+    # If the file does not exist, return a 404 Not Found response
+    return JSONResponse({"detail": "File not found"}, status_code=404)
 
+
+# Define the data endpoint
+@app.get("/data")
+async def get_data():
+    overlayed_images = os.listdir("static/output")
+    return {"overlayed_images": overlayed_images}
+
+
+# Define the shareable link endpoint
+@app.get("/url")
+async def get_shareable_link(request: Request):
+    base_url = request.base_url
+    return {"shareable_link": base_url}
+
+
+# Define the images endpoint
+@app.get("/images")
+async def get_images():
+    overlayed_images = os.listdir("static/output")
+    image_urls = [
+        f"http://localhost:12000/static/output/{image}" for image in overlayed_images
+    ]
+    return {"image_urls": image_urls}
+
+
+# Define the preview endpoint
+@app.get("/preview/{filename}")
+async def preview(filename: str):
+    # Making the file path
+    file_path = os.path.join("static", "output", filename)
+
+    # Check if the file exists
+    if os.path.isfile(file_path):
+        # If the file exists, return it as a response
+        return FileResponse(file_path)
+
+    # If the file does not exist, return a 404 Not Found response
+    return JSONResponse({"detail": "File not found"}, status_code=404)
+
+
+# Start the server
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=12000)
