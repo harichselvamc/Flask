@@ -485,6 +485,10 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 from rembg import remove
+import multiprocessing
+import asyncio
+import time
+
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -536,65 +540,68 @@ def create_home_html():
 async def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request})
 
+async def process_image(file, text, output_directory, next_file_number):
+    temp_path = os.path.join(output_directory, f"temp_{file.filename}")
+    with open(temp_path, "wb") as f:
+        f.write(await file.read())
+
+    with open(temp_path, "rb") as image_file:
+        image_data = image_file.read()
+        output_data = remove(image_data)
+
+    image_array = np.frombuffer(output_data, np.uint8)
+
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+    image = cv2.resize(image, (1080, 1080))
+
+    file_name = file.filename
+    file_name_without_extension, file_extension = os.path.splitext(file_name)
+
+    if text:
+        overlay_text = text
+    else:
+        overlay_text = f"{file_name_without_extension}{file_extension}"
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 2
+    font_thickness = 5
+    text_color = (0, 0, 238)
+
+    (text_width, text_height), _ = cv2.getTextSize(
+        overlay_text, font, font_scale, font_thickness
+    )
+
+    x = int((image.shape[1] - text_width) / 2)
+    y = image.shape[0] - int(text_height) - 30
+
+    cv2.putText(
+        image, overlay_text, (x, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA
+    )
+
+    output_file_path = os.path.join(output_directory, f"output_{next_file_number}.png")
+    cv2.imwrite(output_file_path, image)
+
+    download_url = f"/static/overlayed_images/output_{next_file_number}.png"
+
+    return file.filename, download_url
+
 @app.post("/upload")
 async def upload(files: List[UploadFile] = File(...), text: str = None):
     output_directory = "static/overlayed_images"
     os.makedirs(output_directory, exist_ok=True)
 
-    download_urls = []
-    instructions = []
-
     next_file_number = get_next_file_number()
 
-    for i, file in enumerate(files):
-        temp_path = os.path.join(output_directory, f"temp_{i}.png")
-        with open(temp_path, "wb") as f:
-            f.write(await file.read())
-
-        with open(temp_path, "rb") as image_file:
-            image_data = image_file.read()
-            output_data = remove(image_data)
-
-        image_array = np.frombuffer(output_data, np.uint8)
-
-        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-
-        image = cv2.resize(image, (1080, 1080))
-
-        file_name = file.filename
-        file_name_without_extension, file_extension = os.path.splitext(file_name)
-
-        if text:
-            overlay_text = text
-        else:
-            overlay_text = f"{file_name_without_extension}{file_extension}"
-
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 2
-        font_thickness = 5
-        text_color = (0, 0, 238)
-
-        (text_width, text_height), _ = cv2.getTextSize(
-            overlay_text, font, font_scale, font_thickness
-        )
-
-        x = int((image.shape[1] - text_width) / 2)
-        y = image.shape[0] - int(text_height) - 30
-
-        cv2.putText(
-            image, overlay_text, (x, y), font, font_scale, text_color, font_thickness, cv2.LINE_AA
-        )
-
-        output_file_path = os.path.join(output_directory, f"output_{next_file_number}.png")
-        cv2.imwrite(output_file_path, image)
-
-        download_url = f"/static/overlayed_images/output_{next_file_number}.png"
-        download_urls.append(download_url)
-
-        instruction = f"Image {file_name} processed. Download: {download_url}"
-        instructions.append(instruction)
-
+    tasks = []
+    for file in files:
+        tasks.append(process_image(file, text, output_directory, next_file_number))
         next_file_number += 1
+
+    results = await asyncio.gather(*tasks)
+
+    download_urls = [result[1] for result in results]
+    instructions = [f"Image {result[0]} processed. Download: {result[1]}" for result in results]
 
     return {"download_urls": download_urls, "instructions": instructions}
 
@@ -642,3 +649,5 @@ async def get_images():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=12000)
+    time.sleep(900)  # Wait for 15 minutes
+    uvicorn.stop()
