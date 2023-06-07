@@ -162,34 +162,39 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
     instructions = []
 
     for i, file in enumerate(files):
-        # Save the uploaded file temporarily
-        temp_path = os.path.join(output_directory, f"temp_{i}.png")
-        with open(temp_path, "wb") as f:
-            f.write(await file.read())
+        try:
+            # Save the uploaded file temporarily
+            temp_path = os.path.join(output_directory, f"temp_{i}.png")
+            with open(temp_path, "wb") as f:
+                f.write(await file.read())
 
-        # Remove the background using rembg
-        output_path = os.path.join(output_directory, f"output_{i}.png")
-        with open(temp_path, "rb") as img_file, open(output_path, "wb") as output_file:
-            img_data = img_file.read()
-            output_data = rembg.remove(img_data)
-            output_file.write(output_data)
+            # Remove the background using rembg
+            output_path = os.path.join(output_directory, f"output_{i}.png")
+            with open(temp_path, "rb") as img_file, open(output_path, "wb") as output_file:
+                img_data = img_file.read()
+                output_data = rembg.remove(img_data)
+                output_file.write(output_data)
 
-        # Resize the image to 1080x1080 and add overlay text
-        image = Image.open(output_path)
-        image = image.resize((1080, 1080))
-        image_with_text = add_text_overlay(image, file.filename, text)
-        image_with_text.save(output_path)
+            # Resize the image to 1080x1080 and add overlay text
+            image = Image.open(output_path)
+            image = image.resize((1080, 1080))
+            image_with_text = add_text_overlay(image, file.filename, text)
+            image_with_text.save(output_path)
 
-        # Remove the temporary file
-        os.remove(temp_path)
+            # Remove the temporary file
+            os.remove(temp_path)
 
-        # Generate the download link URL for the output image
-        download_url = f"/static/output/output_{i}.png"
-        download_urls.append(download_url)
+            # Generate the download link URL for the output image
+            download_url = f"/static/output/output_{i}.png"
+            download_urls.append(download_url)
 
-        # Add instruction
-        instruction = f"Image {file.filename} processed. Download: {download_url}"
-        instructions.append(instruction)
+            # Add instruction
+            instruction = f"Image {file.filename} processed. Download: {download_url}"
+            instructions.append(instruction)
+        except Exception as e:
+            # Log the error and continue with the next file
+            error_message = f"Error processing file {file.filename}: {str(e)}"
+            print(error_message)
 
     # Return the download URLs and instructions in the API response
     return {"download_urls": download_urls, "instructions": instructions}
