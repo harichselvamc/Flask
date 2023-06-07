@@ -1696,7 +1696,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -1757,7 +1757,7 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         result[mask == 0] = 255
 
         # Create a transparent background image
-        transparent_img = np.zeros_like(result)
+        transparent_img = np.zeros_like(result, dtype=np.uint8)
         transparent_img[:, :] = (255, 255, 255, 0)
 
         # Resize the image to 1080x1080
