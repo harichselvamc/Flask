@@ -139,7 +139,7 @@
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
 import os
-import cv2
+from PIL import Image
 from typing import List
 from fastapi import FastAPI, UploadFile, Request, File
 from fastapi.staticfiles import StaticFiles
@@ -180,53 +180,11 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
             output_data = rembg.remove(img_data)
             output_file.write(output_data)
 
-        # Read the image using OpenCV
-        image = cv2.imread(output_path)
-
-        # Resize the image to 1080x1080
-        resized_image = cv2.resize(image, (1080, 1080))
-
-        # Release memory used by the original image
-        del image
-
-        # Get the name from the uploaded file
-        file_name = file.filename
-        file_name_without_extension, file_extension = os.path.splitext(file_name)
-
-        # Prepare the text to overlay on the image
-        if text:
-            overlay_text = text
-        else:
-            overlay_text = f"{file_name_without_extension}{file_extension}"
-
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 2
-        font_thickness = 5
-        text_color = (0, 0, 238)
-
-        # Set the text size
-        (text_width, text_height), _ = cv2.getTextSize(
-            overlay_text, font, font_scale, font_thickness
-        )
-
-        # Calculate the position to place the text
-        x = int((resized_image.shape[1] - text_width) / 2)  # Centered horizontally
-        y = int((resized_image.shape[0] + text_height) - 30)  # Placed at the bottom
-
-        # Overlay the text on the image
-        cv2.putText(
-            resized_image,
-            overlay_text,
-            (x, y),
-            font,
-            font_scale,
-            text_color,
-            font_thickness,
-            cv2.LINE_AA,
-        )
-
-        # Save the resulting image
-        cv2.imwrite(output_path, resized_image)
+        # Resize the image to 1080x1080 and add overlay text
+        image = Image.open(output_path)
+        image = image.resize((1080, 1080))
+        image_with_text = add_text_overlay(image, file.filename, text)
+        image_with_text.save(output_path)
 
         # Remove the temporary file
         os.remove(temp_path)
@@ -236,14 +194,25 @@ async def upload(files: List[UploadFile] = File(...), text: str = None):
         download_urls.append(download_url)
 
         # Add instruction
-        instruction = f"Image {file_name} processed. Download: {download_url}"
+        instruction = f"Image {file.filename} processed. Download: {download_url}"
         instructions.append(instruction)
-
-        # Release memory used by the resized image
-        del resized_image
 
     # Return the download URLs and instructions in the API response
     return {"download_urls": download_urls, "instructions": instructions}
+
+
+def add_text_overlay(image, filename, text):
+    from PIL import ImageDraw, ImageFont
+
+    overlay_text = text or filename
+    font = ImageFont.truetype("arial.ttf", 100)
+    draw = ImageDraw.Draw(image)
+    text_width, text_height = draw.textsize(overlay_text, font=font)
+    x = int((image.width - text_width) / 2)
+    y = image.height - text_height - 30
+    draw.text((x, y), overlay_text, font=font, fill=(0, 0, 238))
+
+    return image
 
 
 @app.get("/download/{filename}")
@@ -283,4 +252,4 @@ async def get_images():
 
 # Start the server
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=12000, workers=3)
+    uvicorn.run(app, host="0.0.0.0", port=12000)
