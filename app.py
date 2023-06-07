@@ -2016,6 +2016,7 @@ from fastapi.responses import Response
 from PIL import Image, ImageDraw, ImageFont
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
