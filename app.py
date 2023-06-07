@@ -334,6 +334,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 from rembg import remove
+from multiprocessing import Process, current_process
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -433,7 +434,9 @@ async def upload(files: List[UploadFile] = File(...), text: str = None, backgrou
     instructions = []
 
     for file in files:
-        background_tasks.add_task(process_image, file, text)
+        p = Process(target=process_image, args=(file, text))
+        p.start()
+        p.join()
 
         instruction = f"Image {file.filename} processing has started."
         instructions.append(instruction)
@@ -470,4 +473,4 @@ async def get_images():
 if __name__ == "__main__":
     create_static_folder()
     create_home_html()
-    uvicorn.run(app, host="0.0.0.0", port=12000)
+    uvicorn.run(app, host="0.0.0.0", port=12000, timeout_keep_alive=900)
