@@ -2249,15 +2249,13 @@
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
 import os
 import cv2
-import base64
 import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import Response
 from PIL import Image, ImageDraw, ImageFont
 from fastapi.staticfiles import StaticFiles
-import uvicorn
 from fastapi.responses import FileResponse
+import uvicorn
 
 app = FastAPI()
 
@@ -2304,15 +2302,9 @@ async def preview_images(files: List[UploadFile] = File(...)):
         # Process the image and generate the preview
         process_image(temp_path, i)
 
-        # Read the preview image as base64-encoded string
+        # Add the preview image path to the response
         output_file_path = f"static/output/output_{i}.png"
-        with open(output_file_path, "rb") as f:
-            image_data = base64.b64encode(f.read()).decode("utf-8")
-            previews.append({
-                "index": i,
-                "image_data": image_data,
-                "filename": file.filename
-            })
+        previews.append(output_file_path)
 
     return {"previews": previews}
 
