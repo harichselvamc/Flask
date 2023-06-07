@@ -1904,6 +1904,12 @@ async def upload(files: List[UploadFile] = File(...)):
 # Serve the static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Define the endpoint to view the output image
+@app.get("/output/{index}")
+async def view_output_image(index: int):
+    output_file_path = f"static/output/output_{index}.png"
+    return FileResponse(output_file_path)
+
 # Start the server
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=12000)
