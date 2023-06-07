@@ -1858,6 +1858,8 @@ from typing import List
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from PIL import Image
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 
 app = FastAPI()
 
