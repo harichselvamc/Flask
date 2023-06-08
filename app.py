@@ -2939,12 +2939,108 @@
 # # Start the server
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
+# import os
+# import cv2
+# import numpy as np
+# from typing import List
+# from fastapi import FastAPI, UploadFile, File
+# from PIL import Image, ImageDraw, ImageFont
+# from fastapi.staticfiles import StaticFiles
+# from fastapi.responses import StreamingResponse, FileResponse
+# import uvicorn
+
+# app = FastAPI()
+
+# # Define the upload endpoint
+# @app.post("/upload")
+# async def upload(files: List[UploadFile] = File(...)):
+#     output_directory = "static/output"
+#     os.makedirs(output_directory, exist_ok=True)
+
+#     for i, file in enumerate(files):
+#         # Save the uploaded file temporarily
+#         temp_path = os.path.join(output_directory, f"temp_{i}.png")
+#         with open(temp_path, "wb") as f:
+#             f.write(await file.read())
+
+#         # Process the image
+#         process_image(temp_path, i)
+
+#     # Get a list of processed image file paths
+#     processed_images = []
+#     for filename in os.listdir(output_directory):
+#         if filename.startswith("out") and filename.endswith(".png"):
+#             processed_images.append(filename)
+
+#     return {"message": "Images processed successfully", "processed_images": processed_images}
+
+
+# # Serve the static files
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# # Define the endpoint to view the output image
+# @app.get("/output/{index}")
+# async def view_output_image(index: int):
+#     output_file_path = f"static/output/output_{index}.png"
+#     return FileResponse(output_file_path)
+
+
+# # Define the endpoint to get all the image previews
+# @app.get("/img")
+# async def get_image_previews():
+#     previews = []
+
+#     output_directory = "static/output"
+#     for filename in os.listdir(output_directory):
+#         if filename.startswith("output_") and filename.endswith(".png"):
+#             output_file_path = os.path.join(output_directory, filename)
+#             previews.append(output_file_path)
+
+#     def stream():
+#         for preview_path in previews:
+#             with open(preview_path, "rb") as f:
+#                 yield f.read()
+
+#     return StreamingResponse(stream(), media_type="image/png")
+
+
+# # Utility function to process the image
+# def process_image(temp_path, index):
+#     # Read the image using OpenCV
+#     img = cv2.imread(temp_path)
+
+#     # Create a mask using the GrabCut algorithm
+#     mask = np.zeros(img.shape[:2], np.uint8)
+#     bgd_model = np.zeros((1, 65), np.float64)
+#     fgd_model = np.zeros((1, 65), np.float64)
+#     rect = (1, 1, img.shape[1] - 1, img.shape[0] - 1)  # Initial rectangular region
+
+#     cv2.grabCut(img, mask, rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+
+#     # Create a mask with only the probable foreground region
+#     mask2 = np.where((mask == 2) | (mask == 0), 0, 1).astype('uint8')
+
+#     # Apply the mask to the original image
+#     result = img * mask2[:, :, np.newaxis]
+
+#     # Resize the image to 1080x1080
+#     resized_result = cv2.resize(result, (1080, 1080))
+
+#     # Save the resulting image
+#     output_directory = "static/output"
+#     output_file_path = os.path.join(output_directory, f"out{index}.png")
+#     cv2.imwrite(output_file_path, resized_result)
+
+
+# # Start the server
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=12000)
 import os
 import cv2
 import numpy as np
 from typing import List
 from fastapi import FastAPI, UploadFile, File
-from PIL import Image, ImageDraw, ImageFont
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse, FileResponse
 import uvicorn
@@ -3010,19 +3106,27 @@ def process_image(temp_path, index):
     # Read the image using OpenCV
     img = cv2.imread(temp_path)
 
-    # Create a mask using the GrabCut algorithm
+    # Convert image to RGB format
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # Create a mask with white background
     mask = np.zeros(img.shape[:2], np.uint8)
+
+    # Define the background and foreground models
     bgd_model = np.zeros((1, 65), np.float64)
     fgd_model = np.zeros((1, 65), np.float64)
-    rect = (1, 1, img.shape[1] - 1, img.shape[0] - 1)  # Initial rectangular region
 
-    cv2.grabCut(img, mask, rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+    # Define the bounding rectangle for the foreground object
+    rect = (1, 1, img.shape[1] - 1, img.shape[0] - 1)
 
-    # Create a mask with only the probable foreground region
-    mask2 = np.where((mask == 2) | (mask == 0), 0, 1).astype('uint8')
+    # Apply GrabCut algorithm to extract foreground
+    cv2.grabCut(img_rgb, mask, rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_RECT)
+
+    # Create a mask with only the foreground region
+    mask = np.where((mask == 2) | (mask == 0), 0, 1).astype('uint8')
 
     # Apply the mask to the original image
-    result = img * mask2[:, :, np.newaxis]
+    result = img * mask[:, :, np.newaxis]
 
     # Resize the image to 1080x1080
     resized_result = cv2.resize(result, (1080, 1080))
