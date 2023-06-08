@@ -3287,6 +3287,7 @@
 # # Start the server
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=12000)
+
 import os
 import cv2
 import numpy as np
@@ -3433,14 +3434,14 @@ def convert_to_cartoon(temp_path, index):
     # Apply median blur to reduce noise
     gray = cv2.medianBlur(gray, 5)
 
-    # Apply adaptive thresholding to obtain edges
-    edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 9)
+    # Create an edge mask using adaptive thresholding
+    thresholded = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 9)
 
-    # Apply bilateral filter to smooth colors
-    colors = cv2.bilateralFilter(img_rgb, 9, 300, 300)
+    # Apply bilateral filter to smooth colors while preserving edges
+    filtered = cv2.bilateralFilter(img_rgb, 9, 250, 250)
 
-    # Combine edges and colors to create cartoon effect
-    cartoon = cv2.bitwise_and(colors, colors, mask=edges)
+    # Create a cartoon effect by combining filtered colors with the edge mask
+    cartoon = cv2.bitwise_and(filtered, filtered, mask=thresholded)
 
     # Save the resulting cartoon image
     output_directory = "static/cartoon"
