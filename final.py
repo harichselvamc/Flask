@@ -536,6 +536,54 @@ def process_image(temp_path, index):
 #     output_file_path = os.path.join(output_directory, f"cartoon_{index}.png")
 #     cv2.imwrite(output_file_path, cartoon)
     
+# @app.post("/uploadcartoon")
+# async def upload_cartoon(files: List[UploadFile] = File(...)):
+#     output_directory = "static/cartoon"
+#     os.makedirs(output_directory, exist_ok=True)
+    
+#     for i, file in enumerate(files):
+#         temp_path = os.path.join(output_directory, f"temp_{i}.png")
+#         with open(temp_path, "wb") as f:
+#             f.write(await file.read())
+            
+#         for j in range(10):
+#             convert_to_cartoon(temp_path, i, j)
+
+#     processed_cartoons = []
+#     for j in range(10):
+#         cartoon_folder = os.path.join(output_directory, f"cartoon_{j}")
+#         cartoon_files = os.listdir(cartoon_folder)
+#         cartoon_files.sort()
+#         processed_cartoons.append(cartoon_files)
+        
+#     return {"message": "Images converted to cartoons successfully", "processed_cartoons": processed_cartoons}
+
+# def convert_to_cartoon(temp_path: str, index: int, loop_index: int):
+#     img = cv2.imread(temp_path)
+#     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#     gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+#     line_size = 7
+#     blur_value = 7
+#     gray_blur = cv2.medianBlur(gray_img, blur_value)
+#     edges = cv2.adaptiveThreshold(gray_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, line_size, blur_value)
+#     k = 7
+#     data = img.reshape(-1, 3)
+#     kmeans = KMeans(n_clusters=k, random_state=42).fit(data)
+#     img_reduced = kmeans.cluster_centers_[kmeans.labels_]
+#     img_reduced = img_reduced.reshape(img.shape)
+#     img_reduced = img_reduced.astype(np.uint8)
+#     d = 7
+#     sigma_color = 200
+#     sigma_space = 200
+#     blurred = cv2.bilateralFilter(img_reduced, d=d, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+#     cartoon = cv2.bitwise_and(blurred, blurred, mask=edges)
+    
+#     output_directory = "static/cartoon"
+#     cartoon_folder = os.path.join(output_directory, f"cartoon_{loop_index}")
+#     os.makedirs(cartoon_folder, exist_ok=True)
+#     output_file_path = os.path.join(cartoon_folder, f"cartoon_{index}.png")
+    
+#     cv2.imwrite(output_file_path, cartoon)
 @app.post("/uploadcartoon")
 async def upload_cartoon(files: List[UploadFile] = File(...)):
     output_directory = "static/cartoon"
@@ -566,24 +614,33 @@ def convert_to_cartoon(temp_path: str, index: int, loop_index: int):
     blur_value = 7
     gray_blur = cv2.medianBlur(gray_img, blur_value)
     edges = cv2.adaptiveThreshold(gray_blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, line_size, blur_value)
-    k = 7
-    data = img.reshape(-1, 3)
-    kmeans = KMeans(n_clusters=k, random_state=42).fit(data)
-    img_reduced = kmeans.cluster_centers_[kmeans.labels_]
-    img_reduced = img_reduced.reshape(img.shape)
-    img_reduced = img_reduced.astype(np.uint8)
-    d = 7
-    sigma_color = 200
-    sigma_space = 200
-    blurred = cv2.bilateralFilter(img_reduced, d=d, sigmaColor=sigma_color, sigmaSpace=sigma_space)
-    cartoon = cv2.bitwise_and(blurred, blurred, mask=edges)
     
-    output_directory = "static/cartoon"
-    cartoon_folder = os.path.join(output_directory, f"cartoon_{loop_index}")
+    filters = [
+        ("aqua", lambda img: ImageEnhance.Color(img).enhance(0.5)),
+        ("colorize", lambda img: ImageOps.colorize(img.convert("L"), (150, 50, 200), (255, 255, 255))),
+        ("comic", lambda img: img.filter(ImageFilter.FIND_EDGES)),
+        ("darkness", lambda img: ImageEnhance.Brightness(img).enhance(0.5)),
+        ("diffuse", lambda img: img.filter(ImageFilter.GaussianBlur(16))),
+        ("emboss", lambda img: img.filter(ImageFilter.EMBOSS)),
+        ("find_edge", lambda img: img.filter(ImageFilter.FIND_EDGES)),
+        ("glowing_edge", apply_glowing_edge_filter),
+        ("ice", lambda img: ImageOps.colorize(img.convert("L"), "#2196F3", "#FFFFFF")),
+        ("inosculate", lambda img: ImageChops.invert(img)),
+        ("lighting", lambda img: ImageEnhance.Brightness(img).enhance(1.5)),
+        ("moire_fringe", lambda img: img.filter(ImageFilter.MedianFilter(5))),
+        ("molten", lambda img: ImageOps.colorize(img.convert("L"), "#FF6F00", "#FFF59D"))
+    ]
+    
+    cartoon_folder = f"static/cartoon/cartoon_{loop_index}"
     os.makedirs(cartoon_folder, exist_ok=True)
-    output_file_path = os.path.join(cartoon_folder, f"cartoon_{index}.png")
     
-    cv2.imwrite(output_file_path, cartoon)
+    for filter_name, filter_function in filters:
+        filtered_image = filter_function(Image.fromarray(img))
+        filtered_image = np.array(filtered_image)
+        filtered_cartoon = cv2.bitwise_and(filtered_image, filtered_image, mask=edges)
+        
+        output_file_path = f"{cartoon_folder}/{filter_name}_{index}.png"
+        cv2.imwrite(output_file_path, filtered_cartoon)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
     
