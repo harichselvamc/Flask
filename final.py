@@ -623,7 +623,7 @@ def convert_to_cartoon(temp_path: str, index: int, loop_index: int):
         ("diffuse", lambda img: img.filter(ImageFilter.GaussianBlur(16))),
         ("emboss", lambda img: img.filter(ImageFilter.EMBOSS)),
         ("find_edge", lambda img: img.filter(ImageFilter.FIND_EDGES)),
-        ("glowing_edge", apply_glowing_edge_filter),
+        
         ("ice", lambda img: ImageOps.colorize(img.convert("L"), "#2196F3", "#FFFFFF")),
         ("inosculate", lambda img: ImageChops.invert(img)),
         ("lighting", lambda img: ImageEnhance.Brightness(img).enhance(1.5)),
