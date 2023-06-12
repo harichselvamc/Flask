@@ -1,6 +1,5 @@
 import os
 import cv2
-import numpy as np
 from PIL import ImageEnhance
 from PIL import ImageOps
 from PIL import ImageChops
@@ -8,23 +7,16 @@ from typing import List
 from fastapi import FastAPI, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse, FileResponse
-import uvicorn
-from sklearn.cluster import KMeans
-import os
 from PIL import Image, ImageFilter
 from scipy.ndimage import gaussian_filter
-import os
-import cv2
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps, ImageEnhance
-from typing import List
-from fastapi import FastAPI, UploadFile, File
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse, FileResponse
 import uvicorn
 from sklearn.cluster import KMeans
-from scipy.ndimage import gaussian_filter
+
 app = FastAPI()
+
+
 if not os.path.exists("static"):
     os.makedirs("static")
 @app.post("/upload")
@@ -71,35 +63,6 @@ async def apply_effect(files: List[UploadFile] = File(...)):
             processed_images.append(filename)
     return {"message": "Images processed with effects successfully", "processed_images": processed_images}
 
-# @app.post("/effect")
-# async def apply_effect(files: List[UploadFile] = File(...)):
-#     output_directory = "static/effect"
-#     os.makedirs(output_directory, exist_ok=True)
-#     for i, file in enumerate(files):
-#         temp_path = os.path.join(output_directory, f"temp_{i}.png")
-#         with open(temp_path, "wb") as f:
-#             f.write(await file.read())
-#         image_gray = cv2.imread(temp_path, cv2.IMREAD_GRAYSCALE)
-#         gray_path = f"static/effect/out_gray_{i}.png"
-#         cv2.imwrite(gray_path, image_gray)
-#         apply_aqua_filter(temp_path, i)
-#         apply_colorize_filter(temp_path, i, red=150, green=50, blue=200)
-#         apply_comic_filter(temp_path, i)
-#         apply_darkness_filter(temp_path, i)
-#         apply_diffuse_filter(temp_path, i, degree=16)
-#         apply_emboss_filter(temp_path, i)
-#         apply_find_edge_filter(temp_path, i, angle=60)
-#         apply_glowing_edge_filter(temp_path, i)
-#         apply_ice_filter(temp_path, i)
-#         apply_inosculate_filter(temp_path, i)
-#         apply_lighting_filter(temp_path, i)
-#         apply_moire_fringe_filter(temp_path, i)
-#         apply_molten_filter(temp_path, i)
-#     processed_images = []
-#     for filename in os.listdir(output_directory):
-#         if filename.startswith("out") and filename.endswith(".png"):
-#             processed_images.append(filename)
-#     return {"message": "Images processed with effects successfully", "processed_images": processed_images}
 
 def process_image(image_path, i):
     image = Image.open(image_path)
